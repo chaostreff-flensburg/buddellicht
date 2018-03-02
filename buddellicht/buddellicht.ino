@@ -51,7 +51,7 @@ bool universesReceived[maxUniverses];
 bool sendFrame = 1;
 int previousDataLength = 0;
 
-int lastArtnetFrame = 0;
+int lastArtnetFrame = WAIT_TIME * FRAMES_PER_SECOND;
 
 void setup() {
   delay(1000); // 1 second delay for recovery
