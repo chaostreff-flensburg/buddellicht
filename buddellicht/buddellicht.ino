@@ -135,8 +135,8 @@ void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* d
 
   // read universe and put into the right part of the display buffer
   for (int i = 0; i < length / 3; i++) {
-    int led = i + (universe - startUniverse) * (previousDataLength / 3);
-    if (led < NUM_LEDS) {
+    // stop Buddel from crashing when receiving frames to large for led strip
+    if (i < NUM_LEDS) {
       leds[i] = CRGB(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
     }
   }
