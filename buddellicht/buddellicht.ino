@@ -20,6 +20,11 @@
 // CONFIGURATION
 /******************************************************************************/
 
+// Every Buddel will listen on universe 0 as a broadcasting universe to all lights
+// and an individual universe defined by its BUDDEL_ID, so every Buddel can be individualy
+// addressed by sending to the ArtNet broadcast address 255.255.255.255.
+#define BUDDEL_ID   1 // integer from 1-14
+
 // FastLED Configuration
 #define DATA_PIN    D1
 //#define CLK_PIN   4
@@ -36,21 +41,12 @@ CRGB leds[NUM_LEDS];
 const char* NETWORK_NAME = "buddellicht";
 const char* NETWORK_PASSWORD = "NotTheRealPassword123";
 
-// Artnet settings
-ArtnetWifi artnet;
-const int startUniverse = 0; // CHANGE FOR YOUR SETUP most software this is 1, some software send out artnet first universe as 0.
-const int numberOfChannels = NUM_LEDS * 3; // Total number of channels you want to receive (1 led = 3 channels)
-
 /******************************************************************************/
 // CONFIGURATION END
 /******************************************************************************/
 
-// Check if we got all universes
-const int maxUniverses = numberOfChannels / 512 + ((numberOfChannels % 512) ? 1 : 0);
-bool universesReceived[maxUniverses];
+ArtnetWifi artnet;
 bool sendFrame = 1;
-int previousDataLength = 0;
-
 int lastArtnetFrame = WAIT_TIME * FRAMES_PER_SECOND;
 
 void setup() {
@@ -114,39 +110,28 @@ void loop() {
 }
 
 void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data) {
-  sendFrame = 1;
+  sendFrame = 0;
+
   // set brightness of the whole strip
   if (universe == 15) {
     FastLED.setBrightness(data[0]);
   }
 
-  // Store which universe has got in
-  if ((universe - startUniverse) < maxUniverses) {
-    universesReceived[universe - startUniverse] = 1;
-  }
-
-  for (int i = 0 ; i < maxUniverses ; i++) {
-    if (universesReceived[i] == 0) {
-      //Serial.println("Broke");
-      sendFrame = 0;
-      break;
-    }
-  }
-
   // read universe and put into the right part of the display buffer
-  for (int i = 0; i < length / 3; i++) {
-    // stop Buddel from crashing when receiving frames to large for led strip
-    if (i < NUM_LEDS) {
-      leds[i] = CRGB(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
+  if (universe == 0 || universe == BUDDEL_ID) {
+    sendFrame = 1;
+
+    for (int i = 0; i < length / 3; i++) {
+      // stop Buddel from crashing when receiving frames to large for led strip
+      if (i < NUM_LEDS) {
+        leds[i] = CRGB(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
+      }
     }
   }
-  previousDataLength = length;
 
   if (sendFrame) {
     lastArtnetFrame = 0;
     FastLED.show();
-    // Reset universeReceived to 0
-    memset(universesReceived, 0, maxUniverses);
   }
 }
 
