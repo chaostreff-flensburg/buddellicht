@@ -1,0 +1,19 @@
+{
+	"name": "server-p5",
+	"productName": "Buddellicht p5.js-Server",
+	"version": "0.0.1",
+	"license": "MIT",
+	"scripts": {
+		"start": "electron .",
+		"build": "electron-packager . --out=dist --asar --overwrite --all"
+	},
+	"dependencies": {
+		"artnet": "^1.3.3",
+		"electron-debug": "^1.0.0"
+	},
+	"devDependencies": {
+		"devtron": "^1.1.0",
+		"electron-packager": "^8.0.0",
+		"electron": "^1.6.6"
+	}
+}
