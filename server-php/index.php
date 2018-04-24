@@ -1,5 +1,6 @@
 <?php
 include('artnet.php'); // http://rmlx.co.uk/quickArtNet.class.txt
+//ip address and universe
 $art = new quickArtNet('192.168.0.255',0);
 mt_srand (date('U'));
 while(true) // Run4ever // not fancy
