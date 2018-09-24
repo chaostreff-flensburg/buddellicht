@@ -43,6 +43,9 @@ CRGB leds[NUM_LEDS];
 const char* NETWORK_NAME = "buddellicht";
 const char* NETWORK_PASSWORD = "NotTheRealPassword123";
 
+const int DEFAULT_ANIMATION = 0; // Choose default animation when no ArtNet Frames were recieved (Hue-Shift: 0, Fire: 1)
+const int CYCLE_SPEED = 200*5; // in ms, cycle speed of baseHue for HSV based animations. About 200 ms cycles in 1 minute through all colors.
+
 /******************************************************************************/
 // CONFIGURATION END
 /******************************************************************************/
@@ -50,6 +53,8 @@ const char* NETWORK_PASSWORD = "NotTheRealPassword123";
 ArtnetWifi artnet;
 bool sendFrame = 1;
 int lastArtnetFrame = WAIT_TIME * FRAMES_PER_SECOND;
+
+uint8_t baseHue = 0;
 
 void setup() {
   delay(1000); // 1 second delay for recovery
@@ -77,8 +82,7 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   // run green pixels on strip as a visual connection confirmation
-  // somehow we need a stupid large number like NUM_LEDS*20 for this step. @ToDo: investigate this
-  for (int i=0; i<=NUM_LEDS*20; i++) {
+  for (int i=0; i<=NUM_LEDS; i++) {
     runner(0x00FF00);
     FastLED.show();
     FastLED.delay(1000/FRAMES_PER_SECOND);
@@ -101,7 +105,14 @@ void loop() {
   artnet.read();
 
   if (lastArtnetFrame > WAIT_TIME * FRAMES_PER_SECOND) {
-    Fire2012(); // run simulation frame
+    switch (DEFAULT_ANIMATION) {
+    case 0:
+      colorwheel(baseHue);
+      break;
+    case 1:
+      Fire2012();
+      break;
+  }
     FastLED.show(); // display this frame
   }
   if (lastArtnetFrame < WAIT_TIME * FRAMES_PER_SECOND + FRAMES_PER_SECOND) {
@@ -109,6 +120,9 @@ void loop() {
     lastArtnetFrame++;
   }
   FastLED.delay(1000 / FRAMES_PER_SECOND);
+
+  // do some periodic updates
+  EVERY_N_MILLISECONDS( CYCLE_SPEED ) { baseHue++; } // slowly cycle the "base color" through the rainbow
 }
 
 void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data) {
@@ -145,6 +159,10 @@ void runner(CRGB clr) {
   fadeToBlackBy( leds, NUM_LEDS, 20);
   int pos = beatsin16( 13, 0, NUM_LEDS-1 );
   leds[pos] += clr;
+}
+
+void colorwheel(int baseHue) {
+  fill_solid( leds, NUM_LEDS, CHSV( baseHue, 255, 255) );
 }
 
 
