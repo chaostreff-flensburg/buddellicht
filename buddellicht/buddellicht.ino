@@ -13,7 +13,6 @@
 #include <ESP8266HTTPClient.h>
 #endif
 #include <WiFiUdp.h>
-#include <ArtnetWifi.h>
 
 #define FASTLED_ALLOW_INTERRUPTS 0
 #include <FastLED.h>
@@ -32,7 +31,7 @@
 //#define CLK_PIN   4
 #define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
-#define NUM_LEDS    13
+#define NUM_LEDS    300
 CRGB leds[NUM_LEDS];
 
 #define BRIGHTNESS          255
@@ -43,16 +42,20 @@ CRGB leds[NUM_LEDS];
 const char* NETWORK_NAME = "buddellicht";
 const char* NETWORK_PASSWORD = "NotTheRealPassword123";
 
-const int DEFAULT_ANIMATION = 0; // Choose default animation when no ArtNet Frames were recieved (Hue-Shift: 0, Fire: 1)
+const int PORT = 2342;
+
+const int DEFAULT_ANIMATION = 0; // Choose default animation when no ArtNet Frames were recieved (Hue-Shift: 0, Fire: 1, BPM128: 2, ColorJuggle: 3)
 const int CYCLE_SPEED = 200*5; // in ms, cycle speed of baseHue for HSV based animations. About 200 ms cycles in 1 minute through all colors.
 
 /******************************************************************************/
 // CONFIGURATION END
 /******************************************************************************/
 
-ArtnetWifi artnet;
-bool sendFrame = 1;
-int lastArtnetFrame = WAIT_TIME * FRAMES_PER_SECOND;
+WiFiUDP udp;
+const int MAX_PACKET_SIZE = (NUM_LEDS*3)+4; // @todo: size by (ledlength*3)+4
+byte packetBuffer[MAX_PACKET_SIZE];
+
+int lastFrame = WAIT_TIME * FRAMES_PER_SECOND;
 
 uint8_t baseHue = 0;
 
@@ -96,15 +99,30 @@ void setup() {
   // set master brightness control
   FastLED.setBrightness(BRIGHTNESS);
 
-  artnet.begin();
-  // this will be called for each packet received
-  artnet.setArtDmxCallback(onDmxFrame);
+  IPAddress ip(233, 255, 255, 255);
+  udp.beginMulticast(WiFi.localIP(), ip, PORT);
 }
 
 void loop() {
-  artnet.read();
 
-  if (lastArtnetFrame > WAIT_TIME * FRAMES_PER_SECOND) {
+  int packet = udp.parsePacket();
+  if (packet) {
+    udp.read(packetBuffer, MAX_PACKET_SIZE);
+
+    int channel = packetBuffer[0];
+    int sequence = packetBuffer[1];
+
+    if (channel == 0 || BUDDEL_ID) {
+      for (int i = 0; i < NUM_LEDS; i++) {
+        leds[i] = CRGB(packetBuffer[(i * 3) + 4], packetBuffer[(i * 3) + 5], packetBuffer[(i * 3) + 6]);
+      }
+      FastLED.show();
+    }
+
+    lastFrame = 0;
+  }
+
+  if (lastFrame > WAIT_TIME * FRAMES_PER_SECOND) {
     switch (DEFAULT_ANIMATION) {
     case 0:
       colorwheel(baseHue);
@@ -112,43 +130,23 @@ void loop() {
     case 1:
       Fire2012();
       break;
+    case 2:
+      bpm(baseHue);
+      break;
+    case 3:
+      juggle();
+      break; 
   }
     FastLED.show(); // display this frame
   }
-  if (lastArtnetFrame < WAIT_TIME * FRAMES_PER_SECOND + FRAMES_PER_SECOND) {
+  if (lastFrame < WAIT_TIME * FRAMES_PER_SECOND + FRAMES_PER_SECOND) {
     // increase waiting timer, but only to a set point, so the esp wont crash
-    lastArtnetFrame++;
+    lastFrame++;
   }
   FastLED.delay(1000 / FRAMES_PER_SECOND);
 
   // do some periodic updates
   EVERY_N_MILLISECONDS( CYCLE_SPEED ) { baseHue++; } // slowly cycle the "base color" through the rainbow
-}
-
-void onDmxFrame(uint16_t universe, uint16_t length, uint8_t sequence, uint8_t* data) {
-  sendFrame = 0;
-
-  // set brightness of the whole strip
-  if (universe == 15) {
-    FastLED.setBrightness(data[0]);
-  }
-
-  // read universe and put into the right part of the display buffer
-  if (universe == 0 || universe == BUDDEL_ID) {
-    sendFrame = 1;
-
-    for (int i = 0; i < length / 3; i++) {
-      // stop Buddel from crashing when receiving frames to large for led strip
-      if (i < NUM_LEDS) {
-        leds[i] = CRGB(data[i * 3], data[i * 3 + 1], data[i * 3 + 2]);
-      }
-    }
-  }
-
-  if (sendFrame) {
-    lastArtnetFrame = 0;
-    FastLED.show();
-  }
 }
 
 
@@ -163,6 +161,26 @@ void runner(CRGB clr) {
 
 void colorwheel(int baseHue) {
   fill_solid( leds, NUM_LEDS, CHSV( baseHue, 255, 255) );
+}
+
+void bpm(int baseHue) {
+  // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
+  uint8_t BeatsPerMinute = 64;
+  CRGBPalette16 palette = PartyColors_p;
+  uint8_t beat = beatsin8( BeatsPerMinute, 64, 255);
+  for( int i = 0; i < NUM_LEDS; i++) { //9948
+    leds[i] = ColorFromPalette(palette, baseHue+(i*2), beat-baseHue+(i*10));
+  }
+}
+
+void juggle() {
+  // eight colored dots, weaving in and out of sync with each other
+  fadeToBlackBy( leds, NUM_LEDS, 20);
+  byte dothue = 0;
+  for( int i = 0; i < 8; i++) {
+    leds[beatsin16( i+7, 0, NUM_LEDS-1 )] |= CHSV(dothue, 200, 255);
+    dothue += 32;
+  }
 }
 
 
@@ -239,4 +257,3 @@ void Fire2012()
       leds[pixelnumber] = color;
     }
 }
-

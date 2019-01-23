@@ -5,7 +5,7 @@
 
 ## Leuchtfeuer (Chaotic Pixel Control)
 
-UDP[channel, sequence, offset, offset, payload...]
+UDP:2342[channel, sequence, offset, offset, payload...]
 
 Channel: 0-255
 0 = Broadcast
