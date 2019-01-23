@@ -1,8 +1,6 @@
-// Require node js dgram module.
 var dgram = require('dgram');
 
 // Create a udp socket client object.
-// @todo: set multicast interface
 var client = dgram.createSocket("udp4");
 
 client.bind(2342);
@@ -14,9 +12,9 @@ client.bind(2342);
 const fps = 30;
 
 function setup() {
-  pixelDensity(1); // for performance reasons
+  pixelDensity(1);
   frameRate(fps)
-  createCanvas(windowWidth,windowHeight); // set small width & height if stutter occurs
+  createCanvas(windowWidth,windowHeight);
 }
 
 let walk = 0;
@@ -31,29 +29,20 @@ function draw() {
   walk = walk + (windowHeight/fpb/16);
   if (walk > windowHeight) walk = 0;
 
-  // Call sendArtNetFrame() when your image is ready to be send.
+  // Call sendFrame() when your image is ready to be send.
   sendFrame();
 }
 
 
-/*=== ARTNET ===*/
-// Logic for ArtNet.
-
+/*=== Leuchtfeuer ===*/
 
 function sendFrame() {
   const NUM_LEDS = 300;
-  var dmx = new Uint8Array(NUM_LEDS*3+4);
-  dmx[0] = 0;
-  dmx[1] = 0;
-  dmx[2] = 0;
-  dmx[3] = 0;
-  // let msg = Buffer.allocUnsafe(NUM_LEDS*3+10);
-  // todo: maybe use uint8array instead of buffer. maybe faster
-  // doesnt need to be clamped, pixel data will only be uint8
-  // msg.writeUInt8(0x00, 2);
-  // msg.writeUInt8(0x00, 0);
-  // msg.writeUInt8(0x02, 0);
-  // msg.writeUInt8(0xA6, 0); //length
+  var data = new Uint8Array(NUM_LEDS*3+4);
+  data[0] = 0;
+  data[1] = 0;
+  data[2] = 0;
+  data[3] = 0;
 
   var d = pixelDensity();
   var col = Math.floor(width*d/2);
@@ -64,17 +53,11 @@ function sendFrame() {
 
   for (var i = 0; i < NUM_LEDS ; i++) {
     var pos = col+((rowjump*distance)*i)
-    // msg.writeUInt8(pixels[pos*4], (NUM_LEDS-i)*3+4);
-    // msg.writeUInt8(pixels[pos*4+1], (NUM_LEDS-i)*3+5);
-    // msg.writeUInt8(pixels[pos*4+2], (NUM_LEDS-i)*3+6);
     
-    dmx[(NUM_LEDS-i)*3+4] = pixels[pos*4];
-    dmx[((NUM_LEDS-i)*3)+5] = pixels[(pos*4)+1];
-    dmx[((NUM_LEDS-i)*3)+6] = pixels[(pos*4)+2];
-    //pixels[pos*4] = 255;
+    data[(NUM_LEDS-i)*3+4] = pixels[pos*4];
+    data[((NUM_LEDS-i)*3)+5] = pixels[(pos*4)+1];
+    data[((NUM_LEDS-i)*3)+6] = pixels[(pos*4)+2];
   }
   
-  // todo: add length
-  client.send(dmx, 2342, "233.255.255.255");
-  // noLoop()
+  client.send(data, 2342, "233.255.255.255");
 }
